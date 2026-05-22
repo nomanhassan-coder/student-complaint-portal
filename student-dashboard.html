@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="logo">Complaint Portal</h1>
+            <div class="nav-menu">
+                <span id="studentName" class="user-name"></span>
+                <button onclick="App.logout()" class="btn-secondary">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h2>My Dashboard</h2>
+            <a href="submit-complaint.html" class="btn-primary">Submit New Complaint</a>
+        </div>
+
+        <!-- FIX BUG-12: added Rejected stat card so the breakdown is complete -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalComplaints">0</div>
+                <div class="stat-label">Total Complaints</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="stat-number" id="pendingComplaints">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card in-progress">
+                <div class="stat-number" id="inProgressComplaints">0</div>
+                <div class="stat-label">In Progress</div>
+            </div>
+            <div class="stat-card resolved">
+                <div class="stat-number" id="resolvedComplaints">0</div>
+                <div class="stat-label">Resolved</div>
+            </div>
+            <div class="stat-card" style="--number-color: #f44336;">
+                <div class="stat-number" id="rejectedComplaints" style="color:#f44336;">0</div>
+                <div class="stat-label">Rejected</div>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <input type="text" id="searchInput" placeholder="Search complaints..." class="search-input">
+            <select id="statusFilter" class="filter-select">
+                <option value="">All Status</option>
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Rejected">Rejected</option>
+            </select>
+            <select id="categoryFilter" class="filter-select">
+                <option value="">All Categories</option>
+                <option value="Transport">Transport</option>
+                <option value="Facilities">Facilities</option>
+                <option value="Academics">Academics</option>
+                <option value="Hostel">Hostel</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+
+        <div class="complaints-section">
+            <h3>My Complaints</h3>
+            <div id="complaintsList" class="complaints-list"></div>
+            <div id="noComplaints" class="empty-state" style="display: none;">
+                <p>No complaints found. Submit your first complaint!</p>
+                <a href="submit-complaint.html" class="btn-primary">Submit Complaint</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="complaintModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle"></h3>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="src/models/User.js"></script>
+    <script src="src/models/Student.js"></script>
+    <script src="src/models/Complaint.js"></script>
+    <script src="src/services/StorageService.js"></script>
+    <script src="src/services/AuthService.js"></script>
+    <script src="src/services/StudentService.js"></script>
+    <script src="src/services/ComplaintService.js"></script>
+    <script src="src/utils/validators.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/app.js"></script>
+
+    <script>
+        let currentUser  = null;
+        let allComplaints = [];
+
+        function initDashboard() {
+            currentUser = App.authService.getCurrentUser();
+            if (!currentUser || currentUser.role !== 'student') {
+                Helpers.redirectTo('login.html');
+                return;
+            }
+            document.getElementById('studentName').textContent = currentUser.name;
+            loadComplaints();
+            document.getElementById('searchInput').addEventListener('input', filterComplaints);
+            document.getElementById('statusFilter').addEventListener('change', filterComplaints);
+            document.getElementById('categoryFilter').addEventListener('change', filterComplaints);
+        }
+
+        function loadComplaints() {
+            // FIX BUG-04: getComplaintsByStudent now coerces IDs to String internally
+            allComplaints = App.complaintService.getComplaintsByStudent(currentUser.id);
+            updateStatistics();
+            displayComplaints(allComplaints);
+        }
+
+        function updateStatistics() {
+            document.getElementById('totalComplaints').textContent     = allComplaints.length;
+            document.getElementById('pendingComplaints').textContent   =
+                allComplaints.filter(c => c.getStatus() === 'Pending').length;
+            document.getElementById('inProgressComplaints').textContent =
+                allComplaints.filter(c => c.getStatus() === 'In Progress').length;
+            document.getElementById('resolvedComplaints').textContent  =
+                allComplaints.filter(c => c.getStatus() === 'Resolved').length;
+            // FIX BUG-12: count rejected complaints
+            document.getElementById('rejectedComplaints').textContent  =
+                allComplaints.filter(c => c.getStatus() === 'Rejected').length;
+        }
+
+        function displayComplaints(complaints) {
+            const listContainer = document.getElementById('complaintsList');
+            const noComplaints  = document.getElementById('noComplaints');
+
+            if (complaints.length === 0) {
+                listContainer.innerHTML = '';
+                noComplaints.style.display = 'block';
+                return;
+            }
+
+            noComplaints.style.display = 'none';
+            listContainer.innerHTML = complaints.map(complaint => {
+                // FIX BUG-08: sanitize FIRST, then truncate — avoids mid-tag truncation
+                const safeDesc = Validators.sanitize(complaint.getDescription()).substring(0, 100);
+                return `
+                    <div class="complaint-card" onclick="viewComplaint(${complaint.getId()})">
+                                <div class="complaint-header">
+                                    <h4>${Validators.sanitize(complaint.getTitle())}</h4>
+                                    <span class="status-badge" style="background-color: ${Helpers.getStatusColor(Validators.sanitize(complaint.getStatus()))}">
+                                        ${Validators.sanitize(complaint.getStatus())}
+                                    </span>
+                                </div>
+                                <p class="complaint-category">Category: ${Validators.sanitize(complaint.getCategory())}</p>
+                                <p class="complaint-description">${safeDesc}...</p>
+                        <div class="complaint-footer">
+                            <span class="complaint-date">${Helpers.getRelativeTime(complaint.getCreatedAt())}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterComplaints() {
+            const searchTerm     = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter   = document.getElementById('statusFilter').value;
+            const categoryFilter = document.getElementById('categoryFilter').value;
+
+            let filtered = allComplaints;
+            if (searchTerm) {
+                filtered = filtered.filter(c =>
+                    c.getTitle().toLowerCase().includes(searchTerm) ||
+                    c.getDescription().toLowerCase().includes(searchTerm)
+                );
+            }
+            if (statusFilter)   filtered = filtered.filter(c => c.getStatus()   === statusFilter);
+            if (categoryFilter) filtered = filtered.filter(c => c.getCategory() === categoryFilter);
+            displayComplaints(filtered);
+        }
+
+        function viewComplaint(complaintId) {
+            const complaint = allComplaints.find(c => c.getId() === complaintId);
+            if (!complaint) return;
+
+            const modal = document.getElementById('complaintModal');
+            document.getElementById('modalTitle').textContent = complaint.getTitle();
+            document.getElementById('modalBody').innerHTML = `
+                <div class="modal-detail">
+                    <p><strong>Status:</strong>
+                        <span class="status-badge" style="background-color: ${Helpers.getStatusColor(Validators.sanitize(complaint.getStatus()))}">
+                            ${Validators.sanitize(complaint.getStatus())}
+                        </span>
+                    </p>
+                    <p><strong>Category:</strong> ${Validators.sanitize(complaint.getCategory())}</p>
+                    <p><strong>Submitted:</strong> ${Helpers.formatDate(complaint.getCreatedAt())}</p>
+                    <p><strong>Last Updated:</strong> ${Helpers.formatDate(complaint.getUpdatedAt())}</p>
+                    <hr>
+                    <p><strong>Description:</strong></p>
+                    <p class="complaint-detail-text">${Validators.sanitize(complaint.getDescription())}</p>
+                    ${complaint.getAdminNotes() ? `
+                        <hr>
+                        <p><strong>Admin Notes:</strong></p>
+                        <p class="admin-notes">${Validators.sanitize(complaint.getAdminNotes())}</p>
+                    ` : ''}
+                </div>
+            `;
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('complaintModal').style.display = 'none';
+        }
+
+        // Use closeModal() so any future cleanup runs through one function
+        window.onclick = function(event) {
+            const modal = document.getElementById('complaintModal');
+            if (event.target === modal) closeModal();
+        };
+
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>

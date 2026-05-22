@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Complaint</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="logo">Complaint Portal</h1>
+            <div class="nav-menu">
+                <a href="student-dashboard.html" class="btn-secondary">Back to Dashboard</a>
+                <button onclick="App.logout()" class="btn-secondary">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="form-container">
+        <div class="form-box">
+            <h2>Submit New Complaint</h2>
+            <p class="subtitle">Describe your issue in detail</p>
+
+            <form id="complaintForm">
+                <div class="form-group">
+                    <label for="title">Complaint Title *</label>
+                    <input type="text" id="title" placeholder="Brief summary of your issue" required>
+                    <small>Be specific and concise</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category *</label>
+                    <select id="category" required>
+                        <option value="">Select a category</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Facilities">Facilities</option>
+                        <option value="Academics">Academics</option>
+                        <option value="Hostel">Hostel</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Detailed Description *</label>
+                    <textarea id="description" rows="6" placeholder="Please provide a detailed description..." required></textarea>
+                    <small id="charCount">0 / 1000 characters (minimum 10)</small>
+                </div>
+
+                <div class="form-info">
+                    <p><strong>Tips for effective complaints:</strong></p>
+                    <ul>
+                        <li>Be clear and specific about the issue</li>
+                        <li>Include relevant dates, times, and locations</li>
+                        <li>Describe how this affects you</li>
+                        <li>Suggest potential solutions if possible</li>
+                    </ul>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Submit Complaint</button>
+                    <button type="button" onclick="resetForm()" class="btn-secondary">Clear Form</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="successModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>✓ Complaint Submitted Successfully!</h3>
+            <p>Your complaint has been registered.</p>
+            <p><strong>Complaint ID:</strong> <span id="complaintId"></span></p>
+            <div class="modal-actions">
+                <button onclick="submitAnother()" class="btn-primary">Submit Another</button>
+                <button onclick="goToDashboard()" class="btn-secondary">View My Complaints</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/models/User.js"></script>
+    <script src="src/models/Student.js"></script>
+    <script src="src/models/Complaint.js"></script>
+    <script src="src/services/StorageService.js"></script>
+    <script src="src/services/AuthService.js"></script>
+    <script src="src/services/StudentService.js"></script>
+    <script src="src/services/ComplaintService.js"></script>
+    <script src="src/utils/validators.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/app.js"></script>
+
+    <script>
+        let currentUser = null;
+
+        function initPage() {
+            currentUser = App.authService.getCurrentUser();
+            
+            if (!currentUser || currentUser.role !== 'student') {
+                Helpers.redirectTo('login.html');
+                return;
+            }
+
+            const descriptionField = document.getElementById('description');
+            const charCount = document.getElementById('charCount');
+
+            descriptionField.addEventListener('input', function() {
+                const length = this.value.length;
+                charCount.textContent = `${length} / 1000 characters (minimum 10)`;
+                
+                if (length < 10) {
+                    charCount.style.color = '#f44336';
+                } else if (length > 900) {
+                    charCount.style.color = '#FF9800';
+                } else {
+                    charCount.style.color = '#4CAF50';
+                }
+            });
+        }
+
+        document.getElementById('complaintForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const title = document.getElementById('title').value.trim();
+            const category = document.getElementById('category').value;
+            const description = document.getElementById('description').value.trim();
+
+            if (title.length < 5) {
+                Helpers.showNotification('Title must be at least 5 characters long', 'error');
+                return;
+            }
+
+            if (!category) {
+                Helpers.showNotification('Please select a category', 'error');
+                return;
+            }
+
+            if (description.length < 10) {
+                Helpers.showNotification('Description must be at least 10 characters long', 'error');
+                return;
+            }
+
+            if (description.length > 1000) {
+                Helpers.showNotification('Description cannot exceed 1000 characters', 'error');
+                return;
+            }
+
+            try {
+                const complaint = App.complaintService.createComplaint(
+                    currentUser.id,
+                    title,
+                    description,
+                    category
+                );
+
+                document.getElementById('complaintId').textContent = complaint.getId();
+                document.getElementById('successModal').style.display = 'flex';
+
+            } catch (error) {
+                Helpers.showNotification(error.message, 'error');
+            }
+        });
+
+        function resetForm() {
+            if (Helpers.confirmAction('Clear the form?')) {
+                document.getElementById('complaintForm').reset();
+                document.getElementById('charCount').textContent = '0 / 1000 characters (minimum 10)';
+                document.getElementById('charCount').style.color = '#666';
+            }
+        }
+
+        function submitAnother() {
+            document.getElementById('successModal').style.display = 'none';
+            document.getElementById('complaintForm').reset();
+            document.getElementById('charCount').textContent = '0 / 1000 characters (minimum 10)';
+            document.getElementById('charCount').style.color = '#666';
+        }
+
+        function goToDashboard() {
+            Helpers.redirectTo('student-dashboard.html');
+        }
+
+        document.addEventListener('DOMContentLoaded', initPage);
+    </script>
+</body>
+</html>

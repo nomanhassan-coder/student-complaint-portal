@@ -1,0 +1,34 @@
+name: Playwright E2E
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: |
+          cd portal
+          npm ci
+      - name: Install Playwright browsers
+        run: |
+          cd portal
+          npx playwright install --with-deps
+      - name: Start static server
+        run: |
+          cd portal
+          npx http-server -p 8000 &
+          sleep 2
+      - name: Run E2E tests
+        run: |
+          cd portal
+          npm run test:e2e

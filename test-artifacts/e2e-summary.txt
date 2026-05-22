@@ -1,0 +1,9 @@
+E2E Summary (manual-run)
+Date: 2026-05-21
+
+Actions performed:
+- Registered a new test student via the registration form.
+- Logged in as the created student and submitted a complaint.
+- Logged in as admin and updated complaint status to 'In Progress', cleared notes, then resolved and deleted the complaint.
+
+Result: All flows exercised successfully in the running browser instance (localStorage-backed). See `../test.md` for the full test matrix and results.

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Student Complaint Portal</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="login-box">
+            <h2>Student Complaint Portal</h2>
+
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="showTab('student', event)">Student Login</button>
+                <button class="tab-btn" onclick="showTab('admin', event)">Admin Login</button>
+            </div>
+
+            <form id="loginForm">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+
+            <div id="studentTab">
+                <p>Don't have an account? <a href="register.html">Register here</a></p>
+            </div>
+
+            <div id="adminTab" style="display:none;">
+                <p class="info-text">Default Admin: admin@portal.com / admin123</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/models/User.js"></script>
+    <script src="src/models/Student.js"></script>
+    <script src="src/models/Complaint.js"></script>
+    <script src="src/services/StorageService.js"></script>
+    <script src="src/services/AuthService.js"></script>
+    <script src="src/services/StudentService.js"></script>
+    <script src="src/services/ComplaintService.js"></script>
+    <script src="src/utils/validators.js"></script>
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/app.js"></script>
+
+    <script>
+        let currentRole = 'student';
+
+        function showTab(role, evt) {
+            currentRole = role;
+            document.getElementById('studentTab').style.display = role === 'student' ? 'block' : 'none';
+            document.getElementById('adminTab').style.display   = role === 'admin'   ? 'block' : 'none';
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            if (evt && evt.target) evt.target.classList.add('active');
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email    = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                // BUG-03 is fixed in AuthService — role is validated server-side
+                const user = await App.authService.login(email, password, currentRole);
+                Helpers.showNotification('Login successful!', 'success');
+                setTimeout(() => {
+                    Helpers.redirectTo(user.role === 'admin'
+                        ? 'admin-dashboard.html'
+                        : 'student-dashboard.html');
+                }, 500);
+            } catch (error) {
+                Helpers.showNotification(error.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>
